@@ -10,27 +10,25 @@
 
 ---
 
-## 📱 Download VoiceCraft AI APK
+## 📱 Download APK
 
-Download the latest official Android APK from GitHub Releases:
+Download the latest official Android APK directly from GitHub Releases:
 
 [![Download Latest APK](https://img.shields.io/badge/Download-Latest%20APK-2563EB?style=for-the-badge&logo=android&logoColor=white)](https://github.com/akujur5-collab/Text-to-voice-.-Apk/releases/latest)
 
-⬇️ **[Download Latest APK](https://github.com/akujur5-collab/Text-to-voice-.-Apk/releases/latest)**
+👉 **[📥 Download Latest APK](https://github.com/akujur5-collab/Text-to-voice-.-Apk/releases/latest)**
 
-Download the latest official Android APK from GitHub Releases.
+Download the latest official Android APK from GitHub Releases. New APK versions are automatically published when a version tag (e.g., `v1.0.1`, `v1.0.2`) is pushed.
 
-New APK versions are automatically published when a version tag is pushed.
-
-### 📥 Android Installation Instructions:
-1. Open the [Download Latest APK](https://github.com/akujur5-collab/Text-to-voice-.-Apk/releases/latest) link.
+### 📥 Step-by-Step Android Installation Instructions:
+1. Open the [📥 Download Latest APK](https://github.com/akujur5-collab/Text-to-voice-.-Apk/releases/latest) link.
 2. Open the latest GitHub Release.
-3. Scroll down to **Assets**.
-4. Tap the **VoiceCraft-AI APK** file (e.g. `VoiceCraft-AI-v1.0.1.apk`).
-5. Download it onto your Android device.
-6. Open the downloaded APK file.
-7. If Android asks for permission to install from this source, allow it.
-8. Install the app and launch VoiceCraft AI.
+3. Scroll down to the **Assets** section.
+4. Tap the **VoiceCraft-AI APK** file (e.g., `VoiceCraft-AI-v1.0.1.apk`).
+5. Download the APK file onto your Android device.
+6. Open the downloaded APK file from your Notifications or Downloads folder.
+7. If Android asks for permission to *"Install unknown apps"* from this source (Chrome/Browser/Files), tap **Settings** and toggle **Allow from this source**.
+8. Tap **Install** to finish setup and launch **VoiceCraft AI**.
 
 ---
 
