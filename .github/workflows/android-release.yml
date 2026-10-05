@@ -1,0 +1,189 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set Up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x ./gradlew
+
+      - name: Determine Version Tag
+        id: version_tag
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v1.0.0"
+          fi
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Resolved release tag: $TAG"
+
+      - name: Configure Android Signing Keystore
+        id: keystore_setup
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding provided production keystore from GitHub Secrets..."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > my-upload-key.jks
+            echo "KEYSTORE_SOURCE=production" >> $GITHUB_ENV
+          else
+            echo "No ANDROID_KEYSTORE_BASE64 secret found. Creating temporary release keystore..."
+            keytool -genkey -v -keystore my-upload-key.jks -alias "${{ secrets.KEY_ALIAS || 'upload' }}" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD || 'android' }}" \
+              -keypass "${{ secrets.KEY_PASSWORD || 'android' }}" \
+              -dname "CN=VoiceCraft AI, OU=VoiceCraft, O=VoiceCraft AI, L=Mountain View, ST=CA, C=US"
+            echo "KEYSTORE_SOURCE=fallback" >> $GITHUB_ENV
+          fi
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Build Release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD || 'android' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'android' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'upload' }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Locate and Package Release APK
+        id: package_apk
+        run: |
+          RELEASE_DIR="app/build/outputs/apk/release"
+          
+          # Find generated APK
+          FOUND_APK=$(find "$RELEASE_DIR" -type f -name "*.apk" | head -n 1)
+          
+          if [ -z "$FOUND_APK" ] || [ ! -f "$FOUND_APK" ]; then
+            echo "Error: No release APK found in $RELEASE_DIR"
+            exit 1
+          fi
+
+          FINAL_APK_NAME="VoiceCraft-AI-${{ env.TAG }}.apk"
+          cp "$FOUND_APK" "$FINAL_APK_NAME"
+
+          FILE_SIZE=$(stat -c%s "$FINAL_APK_NAME" 2>/dev/null || stat -f%z "$FINAL_APK_NAME")
+          if [ -z "$FILE_SIZE" ] || [ "$FILE_SIZE" -le 0 ]; then
+            echo "Error: Generated APK is zero bytes!"
+            exit 1
+          fi
+
+          FILE_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $FILE_SIZE/1048576}")
+          SHA256_HASH=$(sha256sum "$FINAL_APK_NAME" | awk '{print $1}')
+
+          echo "APK_PATH=$FINAL_APK_NAME" >> $GITHUB_ENV
+          echo "APK_NAME=$FINAL_APK_NAME" >> $GITHUB_ENV
+          echo "FILE_SIZE_MB=$FILE_SIZE_MB" >> $GITHUB_ENV
+          echo "SHA256_HASH=$SHA256_HASH" >> $GITHUB_ENV
+          echo "apk_path=$FINAL_APK_NAME" >> $GITHUB_OUTPUT
+
+          echo "Successfully prepared: $FINAL_APK_NAME ($FILE_SIZE_MB MB)"
+          echo "SHA-256: $SHA256_HASH"
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: ${{ env.APK_PATH }}
+          retention-days: 30
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          cat << 'EOF' > RELEASE_BODY.md
+          ## VoiceCraft AI ${{ env.TAG }}
+
+          AI-powered Text-to-Speech Android mobile studio for creators, narrators, and voice-over artists.
+
+          ### 📱 Download & Install
+
+          | Asset | File Size | SHA-256 Checksum |
+          |---|---|---|
+          | **[`${{ env.APK_NAME }}`]** | `${{ env.FILE_SIZE_MB }} MB` | `${{ env.SHA256_HASH }}` |
+
+          #### 📥 Installation Steps:
+          1. Open the [Download Latest APK](https://github.com/akujur5-collab/Text-to-voice-.-Apk/releases/latest) link.
+          2. Open the latest GitHub Release.
+          3. Scroll to **Assets**.
+          4. Tap the **${{ env.APK_NAME }}** file.
+          5. Download it onto your Android device.
+          6. Open the downloaded APK.
+          7. If Android asks for permission to install from this source, allow it.
+          8. Install the app and launch VoiceCraft AI.
+
+          ---
+
+          ### 🚀 What's New
+          - **Multi-Language Speech Synthesis**: Natural voice generation in Hindi, English (US/UK), Bengali, Marathi, Tamil, Telugu, Gujarati, Punjabi, Kannada, and Malayalam.
+          - **5-Second Voice Auditions**: Instant narrator preview clips for every voice catalog entry with local audio caching and auto-stop limiters.
+          - **MP3 & WAV Format Selection**: Export either universal compressed MP3 or studio-master lossless 24kHz PCM WAV.
+          - **YouTube Shorts Script Builder**: Guided Hook, Main Narrative, and CTA inputs with word count and duration estimation (15s, 30s, 45s, 60s).
+          - **Audio Storage & Sharing**: Scoped MediaStore export directly into `Music/VoiceCraft` and Android native share sheet integration.
+          - **Project History**: Room database integration for offline recall, playback, and script management.
+
+          ### 🐛 Bug Fixes
+          - Fixed UTF-8 character preservation across multi-chunk Devanagari Hindi text scripts.
+          - Resolved audio player duration formatting and scrub position synchronization.
+          - Fixed scoped storage compatibility on Android 10+ (API 29–36).
+
+          ### ⚡ Performance Improvements
+          - Added local memory and disk caching for narrator preview samples, reducing latency to < 50ms for repeat auditions.
+          - Optimized text chunking algorithm to split along natural sentence punctuation boundaries.
+          - Streamlined incremental build and APK size optimizations.
+
+          ---
+
+          ### ⚙️ System Requirements
+          - **Minimum Android Version**: Android 8.0 (Oreo, API level 26)
+          - **Target Android Version**: Android 15 (API level 36)
+          - **Architecture**: Universal APK (ARM64, ARMv7, x86_64)
+
+          ---
+          *Automated build by VoiceCraft AI Release Workflow • [GitHub Repository](https://github.com/akujur5-collab/Text-to-voice-.-Apk)*
+          EOF
+
+      - name: Create or Update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: VoiceCraft AI ${{ env.TAG }}
+          body_path: RELEASE_BODY.md
+          draft: false
+          prerelease: false
+          files: ${{ env.APK_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,14 @@
+{
+  "name": "voicecraft-backend",
+  "version": "1.0.1",
+  "description": "Secure proxy backend for VoiceCraft AI Android app integrating Google AI and Cloud Text-to-Speech",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  }
+}

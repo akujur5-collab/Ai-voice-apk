@@ -1,0 +1,6 @@
+{
+  "name": "VoiceCraft AI",
+  "description": "Professional AI Text-to-Speech studio for creators, narrators, and voice-overs with multi-language and style support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
