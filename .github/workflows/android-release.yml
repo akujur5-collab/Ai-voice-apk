@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release Tag (e.g. v1.0.0)'
+        description: 'Release Tag (e.g. v1.0.1)'
         required: false
-        default: 'v1.0.0'
+        default: 'v1.0.1'
 
 permissions:
   contents: write
@@ -38,19 +38,19 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
 
-      - name: Determine Version Tag
-        id: version_tag
+      - name: Determine Version
+        id: version_step
         run: |
           if [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            TAG="${{ github.event.inputs.release_tag }}"
+            VERSION="${{ github.event.inputs.release_tag }}"
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${GITHUB_REF#refs/tags/}"
           else
-            TAG="v1.0.0"
+            VERSION="v1.0.1"
           fi
-          echo "TAG=$TAG" >> $GITHUB_ENV
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Resolved release tag: $TAG"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Resolved version: $VERSION"
 
       - name: Configure Android Signing Keystore
         id: keystore_setup
@@ -79,7 +79,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'upload' }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Locate and Package Release APK
+      - name: Locate, Rename and Package Release APK
         id: package_apk
         run: |
           RELEASE_DIR="app/build/outputs/apk/release"
@@ -92,7 +92,7 @@ jobs:
             exit 1
           fi
 
-          FINAL_APK_NAME="VoiceCraft-AI-${{ env.TAG }}.apk"
+          FINAL_APK_NAME="VoiceCraft-AI-${{ env.VERSION }}.apk"
           cp "$FOUND_APK" "$FINAL_APK_NAME"
 
           FILE_SIZE=$(stat -c%s "$FINAL_APK_NAME" 2>/dev/null || stat -f%z "$FINAL_APK_NAME")
@@ -111,7 +111,7 @@ jobs:
           echo "apk_path=$FINAL_APK_NAME" >> $GITHUB_OUTPUT
 
           echo "Successfully prepared: $FINAL_APK_NAME ($FILE_SIZE_MB MB)"
-          echo "SHA-256: $SHA256_HASH"
+          echo "SHA-256 checksum: $SHA256_HASH"
 
       - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4
@@ -124,7 +124,7 @@ jobs:
         id: release_notes
         run: |
           cat << 'EOF' > RELEASE_BODY.md
-          ## VoiceCraft AI ${{ env.TAG }}
+          ## VoiceCraft AI ${{ env.VERSION }}
 
           AI-powered Text-to-Speech Android mobile studio for creators, narrators, and voice-over artists.
 
@@ -179,8 +179,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG }}
-          name: VoiceCraft AI ${{ env.TAG }}
+          tag_name: ${{ env.VERSION }}
+          name: VoiceCraft AI ${{ env.VERSION }}
           body_path: RELEASE_BODY.md
           draft: false
           prerelease: false
