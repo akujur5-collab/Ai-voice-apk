@@ -26,28 +26,19 @@ android {
     create("release") {
       val keystoreEnv = System.getenv("KEYSTORE_PATH")
       val keystoreFile = if (!keystoreEnv.isNullOrEmpty()) file(keystoreEnv) else file("${rootDir}/my-upload-key.jks")
-      val storePass = System.getenv("STORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
-      val keyPass = System.getenv("KEY_PASSWORD")
-      val alias = System.getenv("KEY_ALIAS") ?: "upload"
-
-      if (keystoreFile.exists() && !storePass.isNullOrEmpty() && !keyPass.isNullOrEmpty()) {
-        storeFile = keystoreFile
-        storePassword = storePass
-        keyAlias = alias
-        keyPassword = keyPass
-      } else {
-        val debugKeystore = file("${rootDir}/debug.keystore")
-        storeFile = if (debugKeystore.exists()) debugKeystore else keystoreFile
+      storeFile = keystoreFile
+      storePassword = System.getenv("STORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD") ?: "android"
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+      keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+    }
+    create("debugConfig") {
+      val customDebug = file("${rootDir}/debug.keystore")
+      if (customDebug.exists()) {
+        storeFile = customDebug
         storePassword = "android"
         keyAlias = "androiddebugkey"
         keyPassword = "android"
       }
-    }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
     }
   }
 
@@ -56,9 +47,26 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      val releaseKeystore = System.getenv("KEYSTORE_PATH")?.let { file(it) } ?: file("${rootDir}/my-upload-key.jks")
+      if (releaseKeystore.exists()) {
+        signingConfig = signingConfigs.getByName("release")
+      } else {
+        val customDebug = file("${rootDir}/debug.keystore")
+        if (customDebug.exists()) {
+          signingConfig = signingConfigs.getByName("debugConfig")
+        } else {
+          signingConfig = signingConfigs.getByName("debug")
+        }
+      }
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      val customDebug = file("${rootDir}/debug.keystore")
+      if (customDebug.exists()) {
+        signingConfig = signingConfigs.getByName("debugConfig")
+      } else {
+        signingConfig = signingConfigs.getByName("debug")
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

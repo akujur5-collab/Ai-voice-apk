@@ -55,15 +55,23 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Resolved release version: $VERSION"
 
-      - name: Configure Android Signing Keystore
+      - name: Configure Keystores
         id: keystore_setup
         run: |
+          # 1. Ensure debug.keystore exists in project root for debug tasks
+          if [ ! -f "debug.keystore" ]; then
+            echo "Creating local build debug.keystore..."
+            keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android -dname "CN=Android Debug, O=Android, C=US"
+          fi
+
+          # 2. Ensure release keystore exists
           if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
             echo "Decoding provided production keystore from GitHub Secrets..."
             echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > my-upload-key.jks
             echo "KEYSTORE_SOURCE=production" >> $GITHUB_ENV
           else
-            echo "No ANDROID_KEYSTORE_BASE64 secret found. Creating temporary release keystore..."
+            echo "Generating release keystore..."
             keytool -genkey -v -keystore my-upload-key.jks -alias "${{ secrets.KEY_ALIAS || 'upload' }}" -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass "${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD || 'android' }}" \
               -keypass "${{ secrets.KEY_PASSWORD || 'android' }}" \
@@ -166,25 +174,26 @@ jobs:
           *Automated build by VoiceCraft AI Release Workflow • [GitHub Repository](https://github.com/akujur5-collab/Text-to-voice-.-Apk)*
           EOF
 
+      - name: Ensure Git Tag Exists
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "${{ env.VERSION }}"
+          git push origin "${{ env.VERSION }}" -f || echo "Tag push skipped or already up to date"
+
       - name: Publish to GitHub Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Publishing release $VERSION..."
-          gh release view "$VERSION" || gh release create "$VERSION" --title "VoiceCraft AI $VERSION" --notes-file RELEASE_BODY.md || true
-          gh release upload "$VERSION" "$APK_PATH" --clobber
-          echo "Release and APK upload completed!"
-
-      - name: Fallback Release Action
-        if: always()
-        uses: softprops/action-gh-release@v2
-        continue-on-error: true
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: VoiceCraft AI ${{ env.VERSION }}
-          body_path: RELEASE_BODY.md
-          draft: false
-          prerelease: false
-          files: ${{ env.APK_PATH }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if ! gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Creating release $VERSION..."
+            gh release create "$VERSION" "$APK_PATH" \
+              --title "VoiceCraft AI $VERSION" \
+              --notes-file RELEASE_BODY.md \
+              --target "${{ github.sha }}"
+          else
+            echo "Release $VERSION exists. Uploading $APK_NAME..."
+            gh release upload "$VERSION" "$APK_PATH" --clobber
+          fi
+          echo "Release published successfully with APK attached!"
