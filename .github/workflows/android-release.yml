@@ -2,6 +2,8 @@ name: Build & Release Android APK
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -46,11 +48,12 @@ jobs:
           elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
           else
-            VERSION="v1.0.1"
+            EXTRACTED_VER=$(grep -E 'versionName\s*=\s*' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+            VERSION="v${EXTRACTED_VER:-1.0.1}"
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Resolved version: $VERSION"
+          echo "Resolved release version: $VERSION"
 
       - name: Configure Android Signing Keystore
         id: keystore_setup
@@ -154,18 +157,6 @@ jobs:
           - **Audio Storage & Sharing**: Scoped MediaStore export directly into `Music/VoiceCraft` and Android native share sheet integration.
           - **Project History**: Room database integration for offline recall, playback, and script management.
 
-          ### 🐛 Bug Fixes
-          - Fixed UTF-8 character preservation across multi-chunk Devanagari Hindi text scripts.
-          - Resolved audio player duration formatting and scrub position synchronization.
-          - Fixed scoped storage compatibility on Android 10+ (API 29–36).
-
-          ### ⚡ Performance Improvements
-          - Added local memory and disk caching for narrator preview samples, reducing latency to < 50ms for repeat auditions.
-          - Optimized text chunking algorithm to split along natural sentence punctuation boundaries.
-          - Streamlined incremental build and APK size optimizations.
-
-          ---
-
           ### ⚙️ System Requirements
           - **Minimum Android Version**: Android 8.0 (Oreo, API level 26)
           - **Target Android Version**: Android 15 (API level 36)
@@ -175,9 +166,19 @@ jobs:
           *Automated build by VoiceCraft AI Release Workflow • [GitHub Repository](https://github.com/akujur5-collab/Text-to-voice-.-Apk)*
           EOF
 
-      - name: Create or Update GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
+      - name: Publish to GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Publishing release $VERSION..."
+          gh release view "$VERSION" || gh release create "$VERSION" --title "VoiceCraft AI $VERSION" --notes-file RELEASE_BODY.md || true
+          gh release upload "$VERSION" "$APK_PATH" --clobber
+          echo "Release and APK upload completed!"
+
+      - name: Fallback Release Action
+        if: always()
         uses: softprops/action-gh-release@v2
+        continue-on-error: true
         with:
           tag_name: ${{ env.VERSION }}
           name: VoiceCraft AI ${{ env.VERSION }}
