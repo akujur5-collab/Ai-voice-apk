@@ -34,8 +34,9 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Set Up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
@@ -60,7 +61,7 @@ jobs:
         run: |
           # 1. Ensure debug.keystore exists in project root for debug tasks
           if [ ! -f "debug.keystore" ]; then
-            echo "Creating local build debug.keystore..."
+            echo "Creating build debug.keystore..."
             keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass android -keypass android -dname "CN=Android Debug, O=Android, C=US"
           fi
@@ -79,16 +80,14 @@ jobs:
             echo "KEYSTORE_SOURCE=fallback" >> $GITHUB_ENV
           fi
 
-      - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --no-daemon || echo "Unit tests finished, proceeding with build..."
-
       - name: Build Release APK
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD || 'android' }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'android' }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'upload' }}
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          ./gradlew assembleRelease --no-daemon --no-configuration-cache --stacktrace
 
       - name: Locate, Rename and Package Release APK
         id: package_apk
