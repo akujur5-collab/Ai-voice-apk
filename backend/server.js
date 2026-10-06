@@ -142,7 +142,28 @@ app.post('/api/tts', async (req, res) => {
       });
     }
 
-    const selectedVoiceName = PREBUILT_VOICES[language] || 'Kore';
+    let selectedVoiceName = 'Kore';
+    const reqVoice = (voice || '').toLowerCase();
+    const reqGender = (req.body.gender || '').toLowerCase();
+
+    if (reqVoice.includes('charon') || reqVoice.includes('aarav') || reqVoice.includes('narrator')) {
+      selectedVoiceName = 'Charon'; // Deep resonant Male Narrator
+    } else if (reqVoice.includes('fenrir') || reqVoice.includes('kabir') || reqVoice.includes('bold')) {
+      selectedVoiceName = 'Fenrir'; // Bold authoritative Male
+    } else if (reqVoice.includes('puck') || reqVoice.includes('rohan') || reqVoice.includes('energetic')) {
+      selectedVoiceName = 'Puck'; // Youthful energetic Male
+    } else if (reqVoice.includes('aoede') || reqVoice.includes('diya') || reqVoice.includes('melodic')) {
+      selectedVoiceName = 'Aoede'; // Soft melodic Female
+    } else if (reqVoice.includes('kore') || reqVoice.includes('aanya') || reqVoice.includes('warm')) {
+      selectedVoiceName = 'Kore'; // Warm expressive Female
+    } else if (reqGender === 'male' || reqVoice.includes('male')) {
+      selectedVoiceName = 'Charon'; // Default Male
+    } else if (reqGender === 'female' || reqVoice.includes('female')) {
+      selectedVoiceName = 'Kore'; // Default Female
+    } else {
+      selectedVoiceName = PREBUILT_VOICES[language] || 'Kore';
+    }
+
     const styleInstruction = STYLE_INSTRUCTIONS[style] || STYLE_INSTRUCTIONS['NATURAL'];
 
     // Construct request to Gemini TTS model (gemini-2.5-flash-preview-tts)
